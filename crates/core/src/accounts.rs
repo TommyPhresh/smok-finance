@@ -94,7 +94,7 @@ pub async fn create_account(pool: &SqlitePool, input: CreateAccount) -> Result<A
     if let Some(parent_id) = input.parent_account_id {
         let parent = get_one_account_by_id(pool, parent_id).await?;
         if parent.account_archived_datetime.is_some() {
-            return Err(CoreError::Validation("cannot assign a child account to an archived parent!").into())));
+            return Err(CoreError::Validation("cannot assign a child account to an archived parent!".into()));
         }
     }
     let account_id = Uuid::new_v4();
@@ -162,7 +162,7 @@ pub async fn update_account(pool: &SqlitePool, account_id: Uuid, input: UpdateAc
         None    => existing.parent_account_id.map(|u| u.to_string()),
     };
     let account_type = match input.account_type {
-        Some(t) => format!("{;?}", t).to_lowercase(),
+        Some(t) => format!("{:?}", t).to_lowercase(),
         None    => format!("{:?}", existing.account_type).to_lowercase(),
     };
     let currency = match input.account_currency {
@@ -170,7 +170,7 @@ pub async fn update_account(pool: &SqlitePool, account_id: Uuid, input: UpdateAc
         None    => existing.account_currency,
     };
     let sort_order = input.account_sort_order.unwrap_or(existing.account_sort_order);
-    let notes = input.account_notes {
+    let notes = match input.account_notes {
         Some(v) => v,
         None    => existing.account_notes,
     };
