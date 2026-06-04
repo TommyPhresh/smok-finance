@@ -21,7 +21,7 @@ pub struct Account {
     pub parent_account_id: Option<Uuid>,
     pub account_type: AccountType,
     pub account_currency: String,
-    pub account_sort_order: i32,
+    pub account_sort_order: i64,
     pub account_notes: Option<String>,
     pub account_created_datetime: DateTime<Utc>,
     pub account_archived_datetime: Option<DateTime<Utc>>,

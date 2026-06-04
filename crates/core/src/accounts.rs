@@ -12,7 +12,7 @@ pub struct CreateAccount {
     pub parent_account_id: Option<Uuid>,
     pub account_type: AccountType,
     pub account_currency: String,
-    pub account_sort_order: i32,
+    pub account_sort_order: i64,
     pub account_notes: Option<String>,
 }
 
@@ -22,7 +22,7 @@ pub struct UpdateAccount {
     pub parent_account_id: Option<Option<Uuid>>,
     pub account_type: Option<AccountType>,
     pub account_currency: Option<String>,
-    pub account_sort_order: Option<i32>,
+    pub account_sort_order: Option<i64>,
     pub account_notes: Option<Option<String>>,
 }
 
@@ -33,9 +33,9 @@ pub async fn list_nonarchived_accounts(pool: &SqlitePool, limit: i64) -> Result<
         Account,
         r#"
         SELECT
-            account_id AS "account_id: Uuid",
+            account_id AS "account_id!: Uuid",
             account_name,
-            parent_account_id AS "parent_account_id: Uuid",
+            parent_account_id AS "parent_account_id?: Uuid",
             account_type AS "account_type: AccountType",
             account_currency,
             account_sort_order,
@@ -62,9 +62,9 @@ pub async fn get_one_account_by_id(pool: &SqlitePool, account_id: Uuid) -> Resul
         Account,
         r#"
         SELECT
-            account_id AS "account_id: Uuid",
+            account_id AS "account_id!: Uuid",
             account_name,
-            parent_account_id AS "parent_account_id: Uuid",
+            parent_account_id AS "parent_account_id?: Uuid",
             account_type AS "account_type: AccountType",
             account_currency,
             account_sort_order,
@@ -221,7 +221,7 @@ pub async fn archive_account(pool: &SqlitePool, account_id: Uuid) -> Result<Acco
         id_str
     )
     .fetch_one(pool)
-    .await?;
+    .await?.into();
     if child_count > 0 {
         return Err(CoreError::Validation("Cannot archive an account with active children!".into()));
     }
@@ -232,7 +232,7 @@ pub async fn archive_account(pool: &SqlitePool, account_id: Uuid) -> Result<Acco
         id_str,
     )
     .fetch_one(pool)
-    .await?;
+    .await?.into();
     if split_count > 0 {
         return Err(CoreError::Validation("Cannot archive an account with recorded transactions; Either re-assign or re-consider!".into()));
     }

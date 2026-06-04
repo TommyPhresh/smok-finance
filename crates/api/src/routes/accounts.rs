@@ -8,7 +8,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, post, pull},
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -45,7 +45,7 @@ pub struct CreateAccountRequest {
     pub parent_account_id: Option<Uuid>,
     pub account_type: AccountType,
     pub account_currency: Option<String>,
-    pub account_sort_order: Option<i32>,
+    pub account_sort_order: Option<i64>,
     pub account_notes: Option<String>,
 }
 
@@ -55,7 +55,7 @@ pub struct UpdateAccountRequest {
     pub parent_account_id: Option<Option<Uuid>>,
     pub account_type: Option<AccountType>,
     pub account_currency: Option<String>,
-    pub account_sort_order: Option<i32>,
+    pub account_sort_order: Option<i64>,
     pub account_notes: Option<String>,
 }
 
@@ -70,13 +70,13 @@ pub fn router() -> Router<SqlitePool> {
 async fn list_accounts(
     State(pool): State<SqlitePool>,
     Query(params): Query<ListParams>,
-) -> Result<Json<ListResponse<smok_core::models::Account>> ApiError> {
-    let limit = params.limit.min(1000).max(1);
+) -> Result<Json<ListResponse<smok_core::models::Account>>, ApiError> {
+    let limit = params.page_limit.min(1000).max(1);
     let all = accounts::list_nonarchived_accounts(&pool, limit).await?;
     let total_results = all.len();
     let page_offset = ((params.page - 1) * limit) as usize;
     let data = all.into_iter().skip(page_offset).take(limit as usize).collect();
-    Ok(Json(ListResponse {data, page:params.page, limit, total_results}))
+    Ok(Json(ListResponse {payload:data, page:params.page, page_limit:limit, total_results:total_results}))
 }
 
 /// GET /accounts/:id returns either one account with the ID or an error
@@ -117,7 +117,7 @@ async fn update_account(
         account_type: body.account_type,
         account_currency: body.account_currency,
         account_sort_order: body.account_sort_order,
-        account_notes: body.account_notes,
+        account_notes: Some(body.account_notes),
     })
     .await?;
     Ok(Json(account))
