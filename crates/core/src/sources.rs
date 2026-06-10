@@ -1,242 +1,177 @@
-//! All CRUD operations for sources
+//! Payee CRUD operations
 
 use crate::error::{CoreError, Result};
-use crate::models::{Source, SourceType};
+use crate::models::Payee;
 use chrono::Utc;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-/// Input type for create_source
-pub struct CreateSource {
-    pub source_name: String,
-    pub source_type: SourceType,
-    pub source_institution_name: Option<String>,
-    pub source_mask: Option<String>,
-    pub source_currency: String,
-    pub source_last_known_balance: Option<f64>,
-    pub source_balance_as_of_date: Option<chrono::NaiveDate>,
-    pub source_plaid_account_id: Option<String>,
-    pub source_plaid_item_id: Option<String>,
+/// create_payee input struct
+pub struct CreatePayee {
+    pub payee_name: String,
+    pub payee_phone: Option<String>,
+    pub payee_address: Option<String>,
+    pub payee_website: Option<String>,
+    pub payee_default_account_id: Option<Uuid>,
 }
 
-/// Input type for update_source
-pub struct UpdateSource {
-    pub source_name: Option<String>,
-    pub source_type: Option<SourceType>,
-    pub source_institution_name: Option<Option<String>>,
-    pub source_mask: Option<Option<String>>,
-    pub source_currency: Option<String>,
-    pub source_last_known_balance: Option<Option<f64>>,
-    pub source_balance_as_of_date: Option<Option<chrono::NaiveDate>>,
-    pub source_plaid_account_id: Option<Option<String>>,
-    pub source_plaid_item_id: Option<Option<String>>,
+/// update_payee input struct
+pub struct UpdatePayee {
+    pub payee_name: Option<String>,
+    pub payee_phone: Option<Option<String>>,
+    pub payee_address: Option<Option<String>>,
+    pub payee_website: Option<Option<String>>,
+    pub payee_default_account_id: Option<Option<Uuid>>,
 }
 
-/// list_nonarchived_sources lists all non-archived sources, sorted by name
-pub async fn list_nonarchived_sources(pool: &SqlitePool, limit: i64) -> Result<Vec<Source>> {
+/// list_payees lists all payees
+pub async fn list_payees(pool: &SqlitePool, limit: i64) -> Result<Vec<Payee>> {
     let rows = sqlx::query_as!(
-        Source,
+        Payee,
         r#"
         SELECT 
-           source_id AS "source_id!: Uuid",
-           source_name,
-           source_type AS "source_type!: SourceType",
-           source_institution_name,
-           source_mask,
-           source_currency,
-           source_last_known_balance,
-           source_balance_as_of_date AS "source_balance_as_of_date?: _",
-           source_plaid_account_id,
-           source_plaid_item_id,
-           source_created_datetime AS "source_created_datetime: _",
-           source_archived_datetime AS "source_archived_datetime: _"
-       FROM sources
-       WHERE source_archived_datetime IS NULL
-       ORDER BY source_name ASC
-       LIMIT ?
-       "#,
-       limit
+            payee_id AS "payee_id!: Uuid",
+            payee_name,
+            payee_phone,
+            payee_address,
+            payee_website,
+            payee_default_account_id AS "payee_default_account_id?: Uuid",
+            payee_created_datetime AS "payee_created_datetime!: _"
+        FROM payees
+        ORDER BY payee_name ASC
+        LIMIT ?
+        "#,
+        limit
     )
     .fetch_all(pool)
     .await?;
     Ok(rows)
 }
 
-/// get_source retrieves a source by its source_id
-pub async fn get_source_by_id(pool: &SqlitePool, id: Uuid) -> Result<Source> {
+/// get_payee_by_id gets a payee by its payee_id
+pub async fn get_payee_by_id(pool: &SqlitePool, id: Uuid) -> Result<Payee> {
     let id_str = id.to_string();
     let row = sqlx::query_as!(
-        Source,
+        Payee,
         r#"
         SELECT
-	    source_id AS "source_id!: Uuid",
-            source_name,
-            source_type AS "source_type: SourceType",
-            source_institution_name,
-            source_mask,
-            source_currency,
-            source_last_known_balance,
-            source_balance_as_of_date AS "source_balance_as_of_date?: _",
-            source_plaid_account_id,
-            source_plaid_item_id,
-            source_created_datetime AS "source_created_datetime: _",
-            source_archived_datetime AS "source_archived_datetime: _"
-        FROM sources
-        WHERE source_id = ?
+            payee_id AS "payee_id!: Uuid",
+            payee_name,
+            payee_phone,
+            payee_address,
+            payee_website,
+            payee_default_account_id AS "payee_default_account_id?: Uuid",
+            payee_created_datetime AS "payee_created_datetime!: _"
+        FROM payees
+        WHERE payee_id = ?
         "#,
         id_str
     )
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| CoreError::NotFound(format!("source {} not found", id)))?;
+    .ok_or_else(|| CoreError::NotFound(format!("Payee {} not found!", id)))?;
     Ok(row)
 }
 
-/// create_source validates and creates a new source, then returns it for confirmation
-pub async fn create_source(pool: &SqlitePool, input: CreateSource) -> Result<Source> {
-    let name = input.source_name.trim().to_string();
+/// search_payee_by_name is a case-insensitive fuzzy match
+pub async fn search_payee_by_name(pool: &SqlitePool, name: &str, limit: i64) -> Result<Vec<Payee>> {
+    let pattern = format!("%{}%", name.trim());
+    let rows = sqlx::query_as!(
+        Payee,
+        r#"
+        SELECT
+            payee_id AS "payee_id!: Uuid",
+            payee_name,
+            payee_phone,
+            payee_address,
+            payee_website,
+            payee_default_account_id AS "payee_default_account_id?: Uuid",
+            payee_created_datetime AS "payee_created_datetime!: _"
+        FROM payees
+        WHERE payee_name LIKE ?
+        ORDER BY payee_name ASC
+        LIMIT ?
+        "#,
+        pattern,
+        limit
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// create_payee creates and returns a new payee
+pub async fn create_payee(pool: &SqlitePool, input: CreatePayee) -> Result<Payee> {
+    let name = input.payee_name.trim().to_string();
     if name.is_empty() {
-        return Err(CoreError::Validation("source_name cannot be empty!".into()));
-    }
-    if input.source_currency.trim().is_empty() {
-        return Err(CoreError::Validation("source_currency cannot be empty!".into()));
+        return Err(CoreError::Validation("Payee name cannot be empty!".into()));
     }
     let id = Uuid::new_v4();
     let id_str = id.to_string();
     let now = Utc::now().to_rfc3339();
-    let currency = input.source_currency.trim().to_uppercase();
-    let source_type_str = format!("{:?}", input.source_type).to_lowercase();
-    let balance_date = input.source_balance_as_of_date.map(|d| d.to_string());
+    let account_str = input.payee_default_account_id.map(|u| u.to_string());
     sqlx::query!(
         r#"
-        INSERT INTO sources (
-            source_id,
-            source_name,
-            source_type,
-            source_institution_name,
-            source_mask,
-            source_currency,
-            source_last_known_balance,
-            source_balance_as_of_date,
-            source_plaid_account_id,
-            source_plaid_item_id,
-            source_created_datetime,
-            source_archived_datetime
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        INSERT INTO payees (
+            payee_id,
+            payee_name,
+            payee_phone,
+            payee_address,
+            payee_website,
+            payee_default_account_id,
+            payee_created_datetime
+        ) VALUE (?, ?, ?, ?, ?, ?, ?)
         "#,
-        id_str, name, source_type_str,
-        input.source_institution_name,
-        input.source_mask, currency,
-        input.source_last_known_balance,
-        balance_date,
-        input.source_plaid_account_id,
-        input.source_plaid_item_id,
-        now,
+        id_str, name,
+        input.payee_phone, input.payee_address,
+        input.payee_address, input.payee_website,
+        account_str, now,
     )
     .execute(pool)
     .await?;
-    get_source_by_id(pool, id).await
+    get_payee_by_id(pool, id).await
 }
 
-/// update_source updates the source whose Id is passed. Returns source object for validation
-pub async fn update_source(pool: &SqlitePool, id: Uuid, input: UpdateSource) -> Result<Source> {
-    let existing = get_source_by_id(pool, id).await?;
-    if existing.source_archived_datetime.is_some() {
-        return Err(CoreError::Validation("Cannot update an archived source!".into()));
-    }
-    if let Some(ref name) = input.source_name {
+/// update_payee updates and returns a payee
+pub async fn update_payee(pool: &SqlitePool, id: Uuid, input: UpdatePayee) -> Result<Payee> {
+    let existing = get_payee_by_id(pool, id).await?;
+    if let Some(ref name) = input.payee_name {
         if name.trim().is_empty() {
-            return Err(CoreError::Validation("source_name cannot be empty!".into()));
+            return Err(CoreError::Validation("Payee name cannot be empty!".into()));
         }
     }
     let id_str = id.to_string();
-    let name = input.source_name.unwrap_or(existing.source_name);
-    let source_type = match input.source_type {
-        Some(t) => format!("{:?}", t).to_lowercase(),
-        None => format!("{:?}", existing.source_type).to_lowercase(),
-    };
-    let institution = match input.source_institution_name {
+    let name = input.payee_name.unwrap_or(existing.payee_name);
+    let phone = match input.payee_phone {
         Some(v) => v,
-        None => existing.source_institution_name,
+        None => existing.payee_phone,
     };
-    let mask = match input.source_mask {
+    let address = match input.payee_address {
         Some(v) => v,
-        None => existing.source_mask,
+        None => existing.payee_address,
     };
-    let currency = match input.source_currency {
-        Some(c) => c.trim().to_uppercase(),
-        None => existing.source_currency,
-    };
-    let balance = match input.source_last_known_balance {
+    let website = match input.payee_website {
         Some(v) => v,
-        None => existing.source_last_known_balance,
+        None => existing.payee_website,
     };
-    let balance_date = match input.source_balance_as_of_date {
-        Some(v) => v.map(|d| d.to_string()),
-        None => existing.source_balance_as_of_date.map(|d| d.to_string()),
-    };
-    let plaid_account = match input.source_plaid_account_id {
+    let account_str = match input.payee_default_account_id {
         Some(v) => v,
-        None => existing.source_plaid_account_id,
-    };
-    let plaid_item = match input.source_plaid_item_id {
-        Some(v) => v,
-        None => existing.source_plaid_item_id,
+        None => existing.payee_default_account_id.map(|u| u.to_string()),
     };
     sqlx::query!(
         r#"
-        UPDATE sources SET
-            source_name = ?,
-            source_type = ?,
-            source_institution_name = ?,
-            source_mask = ?,
-            source_currency = ?,
-            source_last_known_balance = ?,
-            source_balance_as_of_date = ?,
-            source_plaid_account_id = ?,
-            source_plaid_item_id = ?
-        WHERE source_id = ?
+        UPDATE payees SET
+            payee_name = ?,
+            payee_phone = ?,
+            payee_address = ?,
+            payee_website = ?,
+            payee_default_account_id = ?
+        WHERE payee_id = ?
         "#,
-        name, source_type, institution, mask, currency,
-        balance, balance_date, plaid_account, plaid_item,
+        name, phone, address, website, account_str,
         id_str,
     )
     .execute(pool)
     .await?;
-     get_source_by_id(pool, id).await
+    get_payee_by_id(pool, id).await
 }
-
-/// archive_source sets the archived datetime of a source.
-/// Blocks attempts to archive sources with unfinished transactions.
-/// Returns source for validation.
-pub async fn archive_source(pool: &SqlitePool, id: Uuid) -> Result<Source> {
-    let existing = get_source_by_id(pool, id).await?;
-    if existing.source_archived_datetime.is_some() {
-        return Err(CoreError::Validation("Cannot archive an already-archived account!".into()));
-    }
-    let id_str = id.to_string();
-    let unsorted_count: i64 = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) FROM transactions
-        WHERE source_id = ?
-        AND transaction_recording_status IN ('not_recorded', 'partially_recorded')
-        "#,
-        id_str
-    )
-    .fetch_one(pool)
-    .await?.into();
-    if unsorted_count > 0 {
-        return Err(CoreError::Validation("Cannot archive a source with unprocessed transactions!".into()))
-;
-    }
-    let now = Utc::now().to_rfc3339();
-    sqlx::query!(
-        r#"
-        UPDATE sources SET source_archived_datetime = ? WHERE source_id = ?"#,
-        now, id_str,
-    )
-    .execute(pool)
-    .await?;
-    get_source_by_id(pool, id).await
-}
-
