@@ -6,7 +6,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-// Input type for create_source
+/// Input type for create_source
 pub struct CreateSource {
     pub source_name: String,
     pub source_type: SourceType,
@@ -19,7 +19,7 @@ pub struct CreateSource {
     pub source_plaid_item_id: Option<String>,
 }
 
-// Input type for update_source
+/// Input type for update_source
 pub struct UpdateSource {
     pub source_name: Option<String>,
     pub source_type: Option<SourceType>,
@@ -33,7 +33,7 @@ pub struct UpdateSource {
 }
 
 /// list_nonarchived_sources lists all non-archived sources, sorted by name
-pub async fn list_nonarchived_sources(pool::&SqlitePool, limit: i64) -> Result<Vec<Source>> {
+pub async fn list_nonarchived_sources(pool: &SqlitePool, limit: i64) -> Result<Vec<Source>> {
     let rows = sqlx::query_as!(
         Source,
         r#"
@@ -48,8 +48,8 @@ pub async fn list_nonarchived_sources(pool::&SqlitePool, limit: i64) -> Result<V
            source_balance_as_of_date AS "source_balance_as_of_date?: _",
            source_plaid_account_id,
            source_plaid_item_id,
-           source_created_datetime AS "source_created_datetime!: _",
-           source_archived_datetime AS "source_archived_datetime!: _"
+           source_created_datetime AS "source_created_datetime: _",
+           source_archived_datetime AS "source_archived_datetime: _"
        FROM sources
        WHERE source_archived_datetime IS NULL
        ORDER BY source_name ASC
@@ -58,7 +58,7 @@ pub async fn list_nonarchived_sources(pool::&SqlitePool, limit: i64) -> Result<V
        limit
     )
     .fetch_all(pool)
-    .await()?;
+    .await?;
     Ok(rows)
 }
 
@@ -71,7 +71,7 @@ pub async fn get_source_by_id(pool: &SqlitePool, id: Uuid) -> Result<Source> {
         SELECT
 	    source_id AS "source_id!: Uuid",
             source_name,
-            source_type AS "source_type!: SourceType",
+            source_type AS "source_type: SourceType",
             source_institution_name,
             source_mask,
             source_currency,
@@ -79,15 +79,15 @@ pub async fn get_source_by_id(pool: &SqlitePool, id: Uuid) -> Result<Source> {
             source_balance_as_of_date AS "source_balance_as_of_date?: _",
             source_plaid_account_id,
             source_plaid_item_id,
-            source_created_datetime AS "source_created_datetime!: _",
-            source_created_datetime AS "source_archived_datetime?: _",
+            source_created_datetime AS "source_created_datetime: _",
+            source_archived_datetime AS "source_archived_datetime: _"
         FROM sources
         WHERE source_id = ?
         "#,
-        id
+        id_str
     )
     .fetch_optional(pool)
-    .await()?
+    .await?
     .ok_or_else(|| CoreError::NotFound(format!("source {} not found", id)))?;
     Ok(row)
 }
@@ -103,7 +103,7 @@ pub async fn create_source(pool: &SqlitePool, input: CreateSource) -> Result<Sou
     }
     let id = Uuid::new_v4();
     let id_str = id.to_string();
-    let now = Utc::now()::to_rfc3339();
+    let now = Utc::now().to_rfc3339();
     let currency = input.source_currency.trim().to_uppercase();
     let source_type_str = format!("{:?}", input.source_type).to_lowercase();
     let balance_date = input.source_balance_as_of_date.map(|d| d.to_string());
@@ -224,9 +224,9 @@ pub async fn archive_source(pool: &SqlitePool, id: Uuid) -> Result<Source> {
         id_str
     )
     .fetch_one(pool)
-    .await?;
+    .await?.into();
     if unsorted_count > 0 {
-        return Err(CoreError::Validation(format!("Cannot archive a source with unprocessed transactions!".into())))
+        return Err(CoreError::Validation("Cannot archive a source with unprocessed transactions!".into()))
 ;
     }
     let now = Utc::now().to_rfc3339();
