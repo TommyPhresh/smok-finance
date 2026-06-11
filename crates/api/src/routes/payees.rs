@@ -8,17 +8,17 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
-use serde::{Debug, Deserialize};
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::routes::accounts::{ListParams, ListResponse};
 use smok_core::models::Payee;
-use smok_core::paees::{self, CreatePayee, UpdatePayee};
+use smok_core::payees::{self, CreatePayee, UpdatePayee};
 
 
 #[derive(Debug, Deserialize)]
@@ -65,7 +65,7 @@ async fn list_payees(
     let all = payees::list_payees(&pool, limit).await?;
     let total_results = all.len();
     let page_offset = ((params.page - 1) * limit) as usize;
-    let data = all.into_iter().skip(offset).take(limit as usize).collect();
+    let data = all.into_iter().skip(page_offset).take(limit as usize).collect();
     Ok(Json(ListResponse{payload: data, page: params.page, page_limit: limit, total_results: total_results}))
 }
 
@@ -83,7 +83,7 @@ async fn search_payee_by_name(
     State(pool): State<SqlitePool>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<Vec<Payee>>, ApiError> {
-    let limit = params.page_limit.min(20).max(1);
+    let limit = params.limit.min(20).max(1);
     let result = payees::search_payee_by_name(&pool, &params.name, limit).await?;
     Ok(Json(result))
 }
